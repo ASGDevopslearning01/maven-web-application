@@ -1,0 +1,92 @@
+pipeline{
+
+
+agent any
+
+tools{
+ maven 'Maven3.8.5'
+} 
+
+triggers {
+  pollSCM('* * * * *')
+  //cron('* * * * *')
+}
+
+options {
+  //Add the time stamps to console output
+  timestamps()
+  
+   //Discard old builds
+   buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '5', numToKeepStr: '5')
+}
+
+  stages
+  {
+  
+  //Get the code from Github
+  stage('CheckoutCode'){
+    steps{
+ git branch: 'development', credentialsId: 'b3c67393-59cc-4d62-b583-4432dab1fa72', url: 'https://github.com/ASGDevopslearning01/maven-web-application.git'
+  }
+  }
+  
+   //Get the build
+   stage('Build'){
+   steps{
+    sh "mvn clean package"
+   }
+   }
+
+
+  //Execute SonarQube Report
+  stage('ExecuteSonarQubeReport'){
+  steps{
+  sh"mvn clean sonar:sonar"
+  }  
+  }
+  
+   //Upload Artifacts in to Nexus
+  stage('UploadArtifactsIntoNexus'){
+  steps{
+  sh "mvn clean deploy"
+  }
+ }
+ 
+ //Deploy application into Tomcat
+
+  stage('DeployapplicationIntoTomcat'){
+  steps{
+ 
+  sshagent(['a492576d-6ec1-43dc-947f-e56c38f6896b']) 
+ {
+ sh "scp -o StrictHostKeyChecking=no target/maven-web-application.war ec2-user@34.203.197.128:/opt/apache-tomcat-9.0.62/webapps"
+ }
+ }
+  }
+
+   }//Stages closing
+   
+   post {
+   always {
+    emailext body: '''Build is completed
+
+    Regards,
+    Devops''', subject: 'Build over', to: 'shekargopidevopstesting@gmail.com'
+  }
+  
+  success {
+    emailext body: '''Build is success
+
+    Regards,
+    Devops''', subject: 'Build over', to: 'shekargopidevopstesting@gmail.com'
+  }
+
+  failure {
+    emailext body: '''Build is failure
+
+    Regards,
+    Devops''', subject: 'Build over', to: 'shekargopidevopstesting@gmail.com'    
+   }
+}
+
+}//pipeline closing
